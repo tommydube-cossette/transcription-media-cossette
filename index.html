@@ -1,0 +1,529 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transcripteur Plan Média — Cossette</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --jaune: #FFEE00; --noir: #000; --gris-fonce: #111; --gris-clair: #2a2a2a;
+    --texte: #f2f2f2; --texte-dim: #999;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background: var(--noir); color: var(--texte); font-family:'Segoe UI',Arial,sans-serif; min-height:100vh; padding:32px 20px 80px; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  header { margin-bottom: 28px; border-bottom: 3px solid var(--jaune); padding-bottom: 18px; }
+  h1 { font-size: 26px; letter-spacing: -0.5px; }
+  h1 span { color: var(--jaune); }
+  .sub { color: var(--texte-dim); font-size: 13px; margin-top: 6px; }
+  .privacy { display:inline-block; margin-top:10px; font-size:11px; color:#7fd97f; border:1px solid #2f5f2f; border-radius:20px; padding:3px 12px; }
+  .dropzone { border:2px dashed #444; border-radius:12px; padding:40px 20px; text-align:center; cursor:pointer; transition:all .2s; margin-bottom:24px; background:var(--gris-fonce); }
+  .dropzone:hover, .dropzone.over { border-color: var(--jaune); background:#161600; }
+  .dropzone .icone { font-size:34px; margin-bottom:10px; }
+  .dropzone strong { color: var(--jaune); }
+  .dropzone p { color: var(--texte-dim); font-size:13px; margin-top:6px; }
+  #fileInput { display:none; }
+  .params { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-bottom:24px; background:var(--gris-fonce); border:1px solid #2a2a2a; border-radius:12px; padding:18px; }
+  .params label { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--texte-dim); display:block; margin-bottom:5px; }
+  .params input { width:100%; background:var(--gris-clair); border:1px solid #3a3a3a; border-radius:6px; color:var(--texte); padding:9px 11px; font-size:14px; }
+  .params input:focus { outline:none; border-color:var(--jaune); }
+  .params .hint { font-size:10px; color:#666; margin-top:4px; }
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
+  button { background:var(--jaune); color:var(--noir); border:none; border-radius:8px; padding:11px 20px; font-size:14px; font-weight:700; cursor:pointer; transition:transform .1s; }
+  button:hover { transform:translateY(-1px); }
+  button.ghost { background:transparent; color:var(--jaune); border:1px solid var(--jaune); }
+  button.mini { padding:6px 14px; font-size:12px; }
+  .placement { background:var(--gris-fonce); border:1px solid #2a2a2a; border-left:4px solid var(--jaune); border-radius:10px; padding:20px; margin-bottom:18px; }
+  .placement-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; }
+  .placement-head .titre { font-weight:700; font-size:15px; color:var(--jaune); }
+  .placement textarea { width:100%; background:var(--gris-clair); border:1px solid #333; border-radius:8px; color:var(--texte); padding:14px; font-size:13.5px; line-height:1.65; font-family:'Segoe UI',Arial,sans-serif; resize:vertical; min-height:190px; }
+  .placement textarea:focus { outline:none; border-color:var(--jaune); }
+  .badge-section { font-size:10px; color:var(--texte-dim); text-transform:uppercase; letter-spacing:1px; }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--jaune); color:var(--noir); padding:10px 22px; border-radius:30px; font-weight:700; font-size:13px; transition:transform .25s; z-index:99; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+  .vide { color:var(--texte-dim); text-align:center; padding:30px; font-size:14px; }
+  .note { background:#1a1a00; border:1px solid #555500; color:#ffc; font-size:12px; padding:10px 14px; border-radius:8px; margin-bottom:16px; display:none; }
+  .opt { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--texte); background:var(--gris-clair); border:1px solid #3a3a3a; border-radius:8px; padding:9px 12px; cursor:pointer; }
+  .opt input { accent-color: var(--jaune); width:15px; height:15px; cursor:pointer; }
+  .placement.exclu { opacity:.35; border-left-color:#444; }
+  .selbox { accent-color: var(--jaune); width:17px; height:17px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Transcripteur <span>Plan Média</span> <span style="font-size:12px;color:#666;">v2</span></h1>
+    <div class="sub">Excel post-achat / plan média → paragraphes de placements prêts à coller</div>
+    <div class="privacy">🔒 100% local — le fichier ne quitte jamais ton navigateur (aucun serveur, aucun upload)</div>
+  </header>
+
+  <div class="dropzone" id="dropzone">
+    <div class="icone">📊</div>
+    <div><strong>Glisse ton fichier Excel ici</strong> ou clique pour choisir</div>
+    <p>.xlsx / .xls / .xlsm — détection automatique et tolérante de la structure</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv">
+  </div>
+
+  <div class="note" id="note"></div>
+
+  <div class="params">
+    <div>
+      <label>Campagne</label>
+      <input id="pCampagne" placeholder="Détecté automatiquement du fichier">
+      <div class="hint">Détecté en haut du fichier, éditable</div>
+    </div>
+    <div>
+      <label>MCPE</label>
+      <input id="pMcpe" placeholder="ex. I-1QU-MG-147">
+      <div class="hint">Détecté du nom de fichier si présent, sinon manuel</div>
+    </div>
+    <div>
+      <label>Client</label>
+      <input id="pClient" placeholder="À entrer manuellement">
+      <div class="hint">Toujours manuel</div>
+    </div>
+  </div>
+
+  <div class="toolbar" style="align-items:center;">
+    <select id="pTri" style="background:var(--gris-clair);color:var(--texte);border:1px solid #3a3a3a;border-radius:8px;padding:10px 12px;font-size:13px;">
+      <option value="fichier">Tri : ordre du fichier</option>
+      <option value="partenaire">Tri : partenaire A→Z</option>
+      <option value="media">Tri : média A→Z</option>
+      <option value="budget">Tri : budget ↓</option>
+    </select>
+    <label class="opt"><input type="checkbox" id="optProduit" checked> Description de produit</label>
+    <label class="opt"><input type="checkbox" id="optSection" checked> Section</label>
+    <button class="ghost mini" id="btnToutSel">☑ Tout sélectionner</button>
+    <button class="ghost mini" id="btnRienSel">☐ Tout désélectionner</button>
+  </div>
+  <div class="toolbar">
+    <button id="btnRegen">↻ Régénérer les paragraphes</button>
+    <button class="ghost" id="btnCopyAll">📋 Copier la sélection</button>
+    <button class="ghost" id="btnTxt">⬇ Exporter .txt (sélection)</button>
+  </div>
+
+  <div id="resultats"><div class="vide">Aucun fichier chargé pour l'instant.</div></div>
+</div>
+
+<div class="toast" id="toast">Copié!</div>
+
+<script>
+const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+let tactiques = [];
+let campagneAuto = '';
+
+const $ = id => document.getElementById(id);
+const dz = $('dropzone'), fi = $('fileInput');
+
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); if (e.dataTransfer.files[0]) lireFichier(e.dataTransfer.files[0]); });
+fi.addEventListener('change', () => { if (fi.files[0]) lireFichier(fi.files[0]); });
+
+function toast(msg) { const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+function note(msg) { const n=$('note'); if(!msg){n.style.display='none';return;} n.style.display='block'; n.innerHTML='ℹ '+msg; }
+
+// ===== Normalisation ultra-tolérante : accents (NFC/NFD), casse, espaces, ponctuation =====
+function norm(v) {
+  if (v == null) return '';
+  return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[\u00a0\s]+/g, ' ').trim();
+}
+function nettoie(v) {
+  if (v == null) return '';
+  if (v instanceof Date) return fmtDate(v);
+  return String(v).replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+function excelDate(v) {
+  if (v instanceof Date && !isNaN(v)) return v;
+  if (typeof v === 'number' && v > 20000 && v < 80000) {
+    const d = XLSX.SSF.parse_date_code(v);
+    if (d) return new Date(d.y, d.m - 1, d.d);
+  }
+  if (typeof v === 'string') {
+    const s = v.trim();
+    let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return new Date(+m[3], +m[1]-1, +m[2]);
+    m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+    // Formats français : "10-août", "30-sept.", "3 août", "03 AOÛT"
+    const MOIS_ABR = {jan:0,fev:1,mar:2,avr:3,mai:4,juin:5,juil:6,aou:7,sep:8,oct:9,nov:10,dec:11};
+    m = norm(s).match(/^(\d{1,2})[\s\-]*([a-z]+)\.?(?:[\s\-]*(\d{4}))?$/);
+    if (m) {
+      const cle = Object.keys(MOIS_ABR).find(k => m[2].startsWith(k));
+      if (cle != null) return new Date(m[3] ? +m[3] : anneeRef, MOIS_ABR[cle], +m[1]);
+    }
+  }
+  return null;
+}
+let anneeRef = new Date().getFullYear();
+function fmtDate(d, avecAnnee = true) {
+  return d.getDate() + ' ' + MOIS[d.getMonth()] + (avecAnnee ? ' ' + d.getFullYear() : '');
+}
+function fmtBudget(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number') return v.toLocaleString('fr-CA',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u202f/g,' ')+' $';
+  let s = String(v).replace(/\u00a0/g,' ').trim();
+  return s;
+}
+
+function lireFichier(file) {
+  const m = file.name.match(/[A-Z]-\d[A-Z]{2}-[A-Z]{2}-\d+/i);
+  if (m) $('pMcpe').value = m[0].toUpperCase();
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true });
+      // Choisir la feuille la plus "riche" (au cas où la 1re serait vide)
+      let best = null, bestScore = -1;
+      for (const nom of wb.SheetNames) {
+        const ws = wb.Sheets[nom];
+        const ref = ws['!ref'];
+        const score = ref ? XLSX.utils.decode_range(ref).e.r : 0;
+        if (score > bestScore) { bestScore = score; best = ws; }
+      }
+      analyser(best);
+    } catch (err) { note('Lecture partielle : ' + err.message + ' — réessaie ou envoie-moi le fichier.'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ===== Détection floue de colonne : exact → commence par → contient (accents ignorés) =====
+function trouveCol(hdrNorm, ...candidats) {
+  for (const cand of candidats) {
+    const cn = norm(cand);
+    let i = hdrNorm.findIndex(h => h === cn); if (i >= 0) return i;
+    i = hdrNorm.findIndex(h => h.startsWith(cn)); if (i >= 0) return i;
+    i = hdrNorm.findIndex(h => h.includes(cn)); if (i >= 0) return i;
+  }
+  return -1;
+}
+
+const MOTS_CLES_HDR = ['media','partenaire','type','marche','audience','format','budget','langue','facturation','ciblage','date de debut','date de fin','frequence','publisher','partner','market','targeting'];
+
+function analyser(ws) {
+  note('');
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:null });
+  const rowsNorm = rows.map(r => (r||[]).map(norm));
+  const notes = [];
+
+  // ===== 1. Trouver la ligne d'en-tête par SCORE de mots-clés (jamais bloquant) =====
+  let hdrIdx = -1, bestScore = 0;
+  for (let i = 0; i < Math.min(rows.length, 80); i++) {
+    let score = 0;
+    for (const cell of rowsNorm[i]) {
+      if (cell && MOTS_CLES_HDR.some(k => cell === k || cell.startsWith(k))) score++;
+    }
+    if (score > bestScore) { bestScore = score; hdrIdx = i; }
+  }
+  // Fallback A : ligne juste au-dessus de la première ligne contenant "section" ou "tactique"
+  if (bestScore < 2) {
+    for (let i = 1; i < rows.length; i++) {
+      if (rowsNorm[i].some(c => c === 'section' || c === 'tactique')) { hdrIdx = i - 1; notes.push('En-tête déduit par position (mots-clés absents).'); break; }
+    }
+  }
+  // Fallback B : première ligne avec 5+ cellules texte
+  if (hdrIdx < 0) {
+    for (let i = 0; i < rows.length; i++) {
+      if (rowsNorm[i].filter(c => c && isNaN(c)).length >= 5) { hdrIdx = i; notes.push('En-tête deviné (structure inhabituelle) — vérifie les paragraphes.'); break; }
+    }
+  }
+  if (hdrIdx < 0) hdrIdx = 0;
+
+  const hdrNorm = rowsNorm[hdrIdx];
+  const cols = {
+    type:       trouveCol(hdrNorm, 'type'),
+    label:      trouveCol(hdrNorm, 'label', 'nom de la tactique', 'tactique', 'placement'),
+    media:      trouveCol(hdrNorm, 'média', 'media', 'type de média', 'canal', 'publisher'),
+    partenaire: trouveCol(hdrNorm, 'partenaire', 'partner', 'fournisseur', 'éditeur', 'editeur'),
+    produit:    trouveCol(hdrNorm, 'environement', 'environnement', 'produit', 'product', 'exécution', 'execution'),
+    audience:   trouveCol(hdrNorm, 'audience', 'ciblage', 'targeting'),
+    marche:     trouveCol(hdrNorm, 'marché', 'marche', 'market'),
+    format:     trouveCol(hdrNorm, 'format'),
+    budget:     trouveCol(hdrNorm, 'budget média', 'budget media', 'budget net', 'budget'),
+    dateDebut:  trouveCol(hdrNorm, 'date de début', 'date de debut', 'start'),
+    dateFin:    trouveCol(hdrNorm, 'date de fin', 'end'),
+  };
+  // Si la colonne "label/tactique" est en fait la même que média ou partenaire, l'ignorer
+  if (cols.label === cols.media || cols.label === cols.partenaire || cols.label === cols.type) cols.label = -1;
+
+  // Année de référence pour les dates sans année ("10-août") : la plus fréquente dans le fichier
+  const anCompte = {};
+  for (const r of rows) for (const c of (r||[])) {
+    if (c instanceof Date && !isNaN(c)) anCompte[c.getFullYear()] = (anCompte[c.getFullYear()]||0)+1;
+    else if (typeof c === 'string') { const m = c.match(/\b(20\d{2})\b/); if (m) anCompte[m[1]] = (anCompte[m[1]]||0)+1; }
+  }
+  const bestAn = Object.keys(anCompte).sort((a,b)=>anCompte[b]-anCompte[a])[0];
+  if (bestAn) anneeRef = +bestAn;
+
+  // Fallback colonne Type : celle qui contient le plus de "tactique"/"section"
+  if (cols.type < 0) {
+    const compte = {};
+    for (let i = hdrIdx+1; i < rows.length; i++)
+      rowsNorm[i].forEach((c, j) => { if (c==='tactique'||c==='section') compte[j]=(compte[j]||0)+1; });
+    const bestJ = Object.keys(compte).sort((a,b)=>compte[b]-compte[a])[0];
+    if (bestJ != null) cols.type = +bestJ;
+  }
+
+  // ===== 2. Colonnes calendrier =====
+  const moisRe = /(jan|fev|mar|avr|mai|juin|juil|aou|sep|oct|nov|dec)/;
+  let calCols = [];
+  if (cols.dateFin >= 0) {
+    for (let c = cols.dateFin + 1; c < hdrNorm.length; c++) if (hdrNorm[c]) calCols.push(c);
+  }
+  if (!calCols.length) {
+    // Détection par en-têtes ressemblant à des semaines : "03 aout", "07 sept." etc.
+    hdrNorm.forEach((h, c) => { if (h && moisRe.test(h) && /\d/.test(h)) calCols.push(c); });
+  }
+
+  // ===== 3. Campagne (pattern 2026-088 ... en haut du fichier) =====
+  campagneAuto = '';
+  for (let i = 0; i < hdrIdx; i++) {
+    for (const cell of (rows[i]||[])) {
+      const v = nettoie(cell);
+      if (/^\d{4}-\d{2,4}\s/.test(v)) { campagneAuto = v; break; }
+    }
+    if (campagneAuto) break;
+  }
+  if (campagneAuto && !$('pCampagne').value) $('pCampagne').value = campagneAuto;
+
+  // ===== 4. Extraire les tactiques =====
+  tactiques = [];
+  let sectionCourante = '';
+  const val = (r, c) => (c >= 0 && r[c] != null) ? r[c] : null;
+
+  for (let i = hdrIdx + 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const type = cols.type >= 0 ? norm(r[cols.type]) : '';
+    if (type === 'section') {
+      // Le nom de la section peut être dans label, partenaire, ou la première cellule texte
+      sectionCourante = nettoie(val(r, cols.label)) || nettoie(val(r, cols.partenaire)) ||
+        nettoie((r.find((c, j) => j !== cols.type && typeof c === 'string' && c.trim() && !/^\d/.test(c.trim())) || ''));
+      continue;
+    }
+
+    let estTactique = (type === 'tactique');
+    // Fallback : pas de colonne Type fiable → toute ligne avec partenaire + (budget ou format) est un placement
+    if (!estTactique && cols.type < 0) {
+      estTactique = !!(val(r, cols.partenaire) && (val(r, cols.budget) || val(r, cols.format) || val(r, cols.media)));
+    }
+    if (!estTactique) continue;
+
+    // Dates : ligne colorée du calendrier (dates ou *X*), fallback colonnes début/fin
+    const datesCal = [];
+    for (const c of calCols) { const d = excelDate(r[c]); if (d) datesCal.push(d); }
+    datesCal.sort((a, b) => a - b);
+    let datesTxt = '';
+    if (datesCal.length >= 2) {
+      const deb = datesCal[0], fin = datesCal[datesCal.length - 1];
+      if (datesCal.length > 2) {
+        datesTxt = 'Du ' + fmtDate(deb, deb.getFullYear()!==fin.getFullYear()) + ' au ' + fmtDate(fin)
+          + ' (' + datesCal.length + ' parutions : ' + datesCal.map(d => fmtDate(d,false)).join(', ') + ')';
+      } else {
+        datesTxt = 'Du ' + fmtDate(deb, deb.getFullYear()!==fin.getFullYear()) + ' au ' + fmtDate(fin);
+      }
+    } else if (datesCal.length === 1) {
+      datesTxt = fmtDate(datesCal[0]);
+    } else {
+      const d1 = excelDate(val(r, cols.dateDebut)), d2 = excelDate(val(r, cols.dateFin));
+      if (d1 && d2) { datesTxt = 'Du ' + fmtDate(d1, d1.getFullYear()!==d2.getFullYear()) + ' au ' + fmtDate(d2) + ' (colonnes dates — vérifier)'; }
+      else datesTxt = 'À vérifier manuellement';
+    }
+
+    tactiques.push({
+      sel: true,
+      ordre: tactiques.length,
+      section: sectionCourante,
+      label: nettoie(val(r, cols.label)),
+      media: nettoie(val(r, cols.media)),
+      partenaire: nettoie(val(r, cols.partenaire)),
+      produit: nettoie(val(r, cols.produit)),
+      marche: nettoie(val(r, cols.marche)),
+      audience: nettoie(val(r, cols.audience)),
+      formatExec: nettoie(val(r, cols.format)),
+      dates: datesTxt,
+      budget: fmtBudget(val(r, cols.budget)),
+      budgetNum: (typeof val(r, cols.budget) === 'number') ? val(r, cols.budget) : parseFloat(String(val(r, cols.budget)||'').replace(/[^\d,\.]/g,'').replace(',','.')) || 0,
+    });
+  }
+
+  // ===== 5. Dernier filet : aucune tactique → toute ligne dense sous l'en-tête =====
+  if (!tactiques.length) {
+    for (let i = hdrIdx + 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const dense = r.filter(c => c != null && String(c).trim() !== '').length;
+      if (dense >= 4) {
+        tactiques.push({
+          sel: true, ordre: tactiques.length, section: '', label: nettoie(val(r, cols.label)), produit: nettoie(val(r, cols.produit)),
+          media: nettoie(val(r, cols.media)), partenaire: nettoie(val(r, cols.partenaire)),
+          marche: nettoie(val(r, cols.marche)), audience: nettoie(val(r, cols.audience)),
+          formatExec: nettoie(val(r, cols.format)), dates: 'À vérifier manuellement', budget: fmtBudget(val(r, cols.budget)), budgetNum: 0,
+        });
+      }
+    }
+    if (tactiques.length) notes.push('Structure non standard : lignes extraites en mode tolérant — vérifie chaque paragraphe.');
+  }
+
+  const manquantes = Object.entries({Média:cols.media, Partenaire:cols.partenaire, Marché:cols.marche, Audience:cols.audience, Format:cols.format, Budget:cols.budget})
+    .filter(([,v]) => v < 0).map(([k]) => k);
+  if (manquantes.length) notes.push('Colonnes non trouvées (laissées à « — ») : ' + manquantes.join(', ') + '.');
+
+  note(notes.join('<br>'));
+  if (!tactiques.length) { note('Aucune ligne exploitable trouvée — envoie-moi ce fichier pour que j\'ajuste la détection.'); return; }
+  toast(tactiques.length + ' placement(s) détecté(s)');
+  rendre();
+}
+
+// ===== Nommage intelligent du placement =====
+// Règle : Partenaire - Descripteur (- Section si elle apporte une distinction)
+// Descripteur = reste du label une fois le partenaire retiré; s'il est générique
+// (Programmatique, Numérique...), on prend plutôt le type du produit (Bannières, Vidéo...)
+const GENERIQUES = ['programmatique','programmatic','numerique','numerique direct','digital','display','media','médias','reseaux sociaux','social'];
+const TYPES_PRODUIT = [
+  [/infolettre|newsletter/i, 'Infolettre'], [/banni[eè]re/i, 'Bannières'],
+  [/vid[eé]o/i, 'Vidéo'], [/audio|balado|podcast/i, 'Audio'],
+  [/native|natif/i, 'Native'], [/commandite|sponsor/i, 'Commandite'],
+  [/article|contenu|advertorial/i, 'Contenu'], [/bulletin/i, 'Bulletin'],
+  [/carrousel/i, 'Carrousel'], [/story|stories/i, 'Stories'],
+];
+function motCleProduit(prod, fmt) {
+  for (const [re, mot] of TYPES_PRODUIT) { if (re.test(prod || '')) return mot; if (re.test(fmt || '')) return mot; }
+  return '';
+}
+function retire(texte, morceau) {
+  if (!texte || !morceau) return texte || '';
+  const t = norm(texte), m = norm(morceau);
+  const idx = t.indexOf(m);
+  if (idx < 0) return texte;
+  // retirer le morceau du texte original (approximation par longueur)
+  return (texte.slice(0, idx) + texte.slice(idx + morceau.length)).replace(/^[\s\-–—:·]+|[\s\-–—:·]+$/g, '').replace(/[\s]{2,}/g, ' ');
+}
+function titrePlacement(t) {
+  // 1. Identifier le "vrai" partenaire et le label descriptif
+  const candidats = [t.label, t.partenaire, t.media].filter(Boolean);
+  if (!candidats.length) return '—';
+  // Le label = le plus long; le partenaire = le plus court contenu dans le label
+  const lab = candidats.reduce((a, b) => (b.length > a.length ? b : a));
+  let part = '';
+  for (const c of [t.partenaire, t.media]) {
+    if (c && c !== lab && norm(lab).includes(norm(c))) { if (!part || c.length < part.length) part = c; }
+  }
+  if (!part) part = t.partenaire || t.media || lab;
+
+  // 2. Descripteur : reste du label sans le partenaire
+  let desc = (lab !== part) ? retire(lab, part) : '';
+  // Retirer aussi le média du descripteur s'il y traîne (ex. "Programmatique - MIQ" → "Programmatique")
+  const autre = (part === t.partenaire) ? t.media : t.partenaire;
+  if (desc && autre && norm(desc) === norm(autre) && GENERIQUES.includes(norm(autre))) desc = '';
+  if (desc && GENERIQUES.includes(norm(desc))) desc = '';
+  if (!desc) desc = motCleProduit(t.produit, t.formatExec);
+
+  // 3. Section : ajoutée seulement si aucun de ses mots n'est déjà dans le titre
+  let sec = '';
+  if (t.section) {
+    const titreNorm = norm(part + ' ' + desc);
+    const motsSec = norm(t.section).split(/[\s\-–—·,]+/).filter(w => w.length > 3);
+    const redondant = motsSec.some(w => titreNorm.includes(w));
+    if (!redondant) sec = t.section.replace(/\s*[-–—]\s*/g, ' ').trim();
+  }
+  return [part, desc, sec].filter(Boolean).join(' - ');
+}
+
+function genParagraphe(t, num) {
+  const l = [];
+  l.push('Placement #' + num + ' : ' + titrePlacement(t));
+  if ($('optProduit').checked && t.produit) l.push('Description de produit : ' + t.produit);
+  if ($('optSection').checked && t.section) l.push('Section : ' + t.section);
+  l.push('Campagne : ' + ($('pCampagne').value || campagneAuto || '—'));
+  l.push('MCPE : ' + ($('pMcpe').value || '—'));
+  l.push('Client : ' + ($('pClient').value || '—'));
+  l.push('Marché : ' + (t.marche || '—'));
+  l.push('Audience : ' + (t.audience || '—'));
+  l.push('Format et exécution : ' + (t.formatExec || '—'));
+  l.push('Dates : ' + t.dates);
+  l.push('Budget : ' + (t.budget || '—'));
+  return l.join('\n');
+}
+
+function ordonner() {
+  const mode = $('pTri').value;
+  const arr = tactiques.slice();
+  if (mode === 'partenaire') arr.sort((a,b) => (a.partenaire||'').localeCompare(b.partenaire||'', 'fr'));
+  else if (mode === 'media') arr.sort((a,b) => (a.media||'').localeCompare(b.media||'', 'fr'));
+  else if (mode === 'budget') arr.sort((a,b) => b.budgetNum - a.budgetNum);
+  else arr.sort((a,b) => a.ordre - b.ordre);
+  return arr;
+}
+
+function rendre() {
+  const cont = $('resultats');
+  cont.innerHTML = '';
+  const arr = ordonner();
+  let num = 0;
+  arr.forEach(t => {
+    const inclus = t.sel;
+    const numAff = inclus ? ++num : null;
+    const i = t.ordre;
+    const div = document.createElement('div');
+    div.className = 'placement' + (inclus ? '' : ' exclu');
+    div.innerHTML =
+      '<div class="placement-head">' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<input type="checkbox" class="selbox"' + (inclus ? ' checked' : '') + '>' +
+          '<div><div class="titre">' + (inclus ? 'Placement #' + numAff : 'Exclu') + '</div>' +
+          '<div class="badge-section">' + (t.partenaire || t.media || '').replace(/</g,'&lt;') +
+          (t.section ? ' · ' + t.section.replace(/</g,'&lt;') : '') + '</div></div>' +
+        '</div>' +
+        '<button class="mini">Copier</button>' +
+      '</div>' +
+      (inclus ? '<textarea id="ta' + i + '"></textarea>' : '');
+    cont.appendChild(div);
+    div.querySelector('.selbox').addEventListener('change', e => { t.sel = e.target.checked; rendre(); });
+    if (inclus) {
+      const ta = div.querySelector('textarea');
+      ta.value = genParagraphe(t, numAff);
+      ta.style.height = 'auto';
+      ta.style.height = (ta.scrollHeight + 6) + 'px';
+      div.querySelector('button').addEventListener('click', () => {
+        navigator.clipboard.writeText($('ta'+i).value).then(() => toast('Placement #' + numAff + ' copié!'));
+      });
+    } else {
+      div.querySelector('button').style.display = 'none';
+    }
+  });
+}
+
+function textesSelection() {
+  const arr = ordonner().filter(t => t.sel);
+  return arr.map(t => {
+    const ta = $('ta' + t.ordre);
+    return ta ? ta.value : '';
+  }).filter(Boolean).join('\n\n');
+}
+
+$('btnRegen').addEventListener('click', () => { if (!tactiques.length) { toast('Charge un fichier d\'abord'); return; } rendre(); toast('Paragraphes régénérés'); });
+$('btnCopyAll').addEventListener('click', () => {
+  const all = textesSelection();
+  if (!all) { toast('Aucun placement sélectionné'); return; }
+  navigator.clipboard.writeText(all).then(() => toast('Sélection copiée!'));
+});
+$('btnTxt').addEventListener('click', () => {
+  const all = textesSelection();
+  if (!all) { toast('Rien à exporter'); return; }
+  const blob = new Blob([all], { type:'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'placements_' + ($('pMcpe').value || 'plan-media') + '.txt';
+  a.click();
+});
+$('btnToutSel').addEventListener('click', () => { tactiques.forEach(t => t.sel = true); if (tactiques.length) rendre(); });
+$('btnRienSel').addEventListener('click', () => { tactiques.forEach(t => t.sel = false); if (tactiques.length) rendre(); });
+$('pTri').addEventListener('change', () => { if (tactiques.length) rendre(); });
+['optProduit','optSection'].forEach(id => $(id).addEventListener('change', () => { if (tactiques.length) rendre(); }));
+['pCampagne','pMcpe','pClient'].forEach(id => $(id).addEventListener('input', () => { if (tactiques.length) rendre(); }));
+</script>
+</body>
+</html>
